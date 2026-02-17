@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Coffee Shop App",
+    "slug": "coffee-shop-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "upbeatcoffee",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "android": {
+      "package": "com.owner.coffeeshop",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4d6632dc-8987-4659-8017-ddcb15274c06"
+      }
+    }
+  }
+}
+
+    
+  
+
