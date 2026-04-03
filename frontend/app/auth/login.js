@@ -1,20 +1,17 @@
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import { supabase } from "../../lib/supabase";
-import { COLORS, SPACING, FONT } from "../../constants";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS, API_URL } from "../../constants";
+import { saveAuthSession } from "../../lib/auth";
+import { useResponsive } from "../../lib/responsive";
 
 export default function Login() {
+  const responsive = useResponsive();
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -28,156 +25,83 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // 🔐 Step 1: Login user
-      const { data, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
+      const res = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Bypass-Tunnel-Reminder": "true",
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
 
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
+      const text = await res.text();
+      const contentType = res.headers.get("content-type") || "";
+      let data = null;
 
-      const user = data.user;
-
-      if (!user) {
-        setError("Login failed");
-        return;
-      }
-
-      // 🔥 Step 2: Get role from profiles table
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError || !profile) {
-        setError("Profile not found");
-        return;
-      }
-
-      // 🔥 Step 3: Role-based navigation
-      if (profile.role === "chef") {
-        router.replace("/chef/chefscreen");
-      } else if (profile.role === "customer") {
-        router.replace("/customer/home");
+      if (contentType.includes("application/json")) {
+        data = JSON.parse(text);
       } else {
-        setError("Access denied");
+        setError(text.includes("ERR_NGROK_8012") ? "Backend is not running on port 5000" : "Server error. Please check backend and ngrok.");
+        return;
       }
 
+      if (!res.ok) {
+        setError(data?.message || "Invalid login credentials");
+        return;
+      }
+
+      await saveAuthSession({ token: data.token, role: data.role });
+      if (data.role === "customer") router.replace("/customer/home");
+      else if (data.role === "chef") router.replace("/chef/chefscreen");
+      else if (data.role === "admin") router.replace("/admin/dashboard");
+      else setError("Access denied");
     } catch (err) {
       console.log("Login error:", err);
-      setError("Something went wrong. Try again.");
+      setError("Server not reachable");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        padding: SPACING.lg,
-        backgroundColor: COLORS.background,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: FONT.title,
-          fontWeight: "bold",
-          textAlign: "center",
-          marginBottom: SPACING.lg,
-        }}
-      >
-        Café Login
-      </Text>
-
-      {error ? (
-        <Text
-          style={{
-            color: "red",
-            textAlign: "center",
-            marginBottom: SPACING.md,
-          }}
-        >
-          {error}
-        </Text>
-      ) : null}
-
-      <TextInput
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-        style={{
-          borderWidth: 1,
-          borderColor: COLORS.border,
-          borderRadius: 8,
-          padding: SPACING.md,
-          marginBottom: SPACING.md,
-          backgroundColor: "#fff",
-        }}
-      />
-
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={{
-          borderWidth: 1,
-          borderColor: COLORS.border,
-          borderRadius: 8,
-          padding: SPACING.md,
-          marginBottom: SPACING.lg,
-          backgroundColor: "#fff",
-        }}
-      />
-
-      <Pressable
-        onPress={handleLogin}
-        disabled={loading}
-        style={{
-          backgroundColor: COLORS.primary,
-          padding: SPACING.md,
-          borderRadius: 8,
-          alignItems: "center",
-          opacity: loading ? 0.6 : 1,
-        }}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text
-            style={{
-              color: "#fff",
-              fontSize: FONT.normal,
-              fontWeight: "bold",
-            }}
-          >
-            LOGIN
+    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", backgroundColor: COLORS.background }}>
+      <View style={{ padding: responsive.screenPadding }}>
+        <View style={{ width: responsive.isLarge ? 420 : responsive.isTablet ? 480 : responsive.contentWidth, alignSelf: "center" }}>
+          <Text style={{ fontSize: responsive.titleSize, fontWeight: "bold", textAlign: "center", marginBottom: responsive.gap }}>
+            Cafe Login
           </Text>
-        )}
-      </Pressable>
 
-      <Pressable
-        onPress={() => router.push("/auth/register")}
-        style={{ marginTop: SPACING.lg, alignItems: "center" }}
-      >
-        <Text style={{ color: COLORS.mutedText }}>
-          Don't have an account?{" "}
-          <Text
-            style={{ color: COLORS.primary, fontWeight: "bold" }}
-          >
-            Register
-          </Text>
-        </Text>
-      </Pressable>
-    </View>
+          {error ? <Text style={{ color: "red", textAlign: "center", marginBottom: responsive.gap / 1.5, fontSize: responsive.bodySize }}>{error}</Text> : null}
+
+          <TextInput
+            placeholder="Email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+            style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 14, marginBottom: responsive.gap / 1.5, backgroundColor: "#fff", fontSize: responsive.bodySize }}
+          />
+
+          <View style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, marginBottom: responsive.gap, backgroundColor: "#fff", flexDirection: "row", alignItems: "center", paddingHorizontal: 14 }}>
+            <TextInput
+              placeholder="Password"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              style={{ flex: 1, paddingVertical: 14, fontSize: responsive.bodySize }}
+            />
+            <Pressable onPress={() => setShowPassword((value) => !value)}>
+              <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={responsive.iconSize} color={COLORS.mutedText} />
+            </Pressable>
+          </View>
+
+          <Pressable onPress={handleLogin} disabled={loading} style={{ backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 10, alignItems: "center", opacity: loading ? 0.6 : 1 }}>
+            <Text style={{ color: "#fff", fontSize: responsive.bodySize, fontWeight: "bold" }}>
+              {loading ? "Logging in..." : "LOGIN"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    </ScrollView>
   );
 }

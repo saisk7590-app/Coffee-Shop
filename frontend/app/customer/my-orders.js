@@ -1,244 +1,99 @@
-import {
-  View,
-  Text,
-  FlatList,
-  ActivityIndicator,
-  Pressable,
-  Platform,
-  TextInput,
-} from "react-native";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { View, Text, FlatList, ActivityIndicator, Pressable, Platform, TextInput } from "react-native";
+import { useEffect, useState, useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { supabase } from "../../lib/supabase";
-import { COLORS, SPACING, FONT, STATUS_COLORS } from "../../constants";
+import { COLORS, STATUS_COLORS, API_URL } from "../../constants";
+import { useResponsive } from "../../lib/responsive";
 
 export default function MyOrders() {
+  const responsive = useResponsive();
   const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState(null);
-
-  // ✅ Today's date (YYYY-MM-DD)
-  const getTodayLocal = () => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
-  };
-
-  const [selectedDate, setSelectedDate] = useState(getTodayLocal());
-
-  // ✅ Format date/time safely
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "";
-
-    const date = new Date(dateString);
-
-    return date.toLocaleString("en-IN", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
-  // ✅ Fetch Orders
-  const fetchOrders = useCallback(async (uid) => {
-    if (!uid) return;
-
-    try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          order_items (
-            id,
-            quantity,
-            price,
-            items (
-              name
-            )
-          )
-        `)
-        .eq("user_id", uid)
-        .order("order_time", { ascending: false });
-
-      if (error) throw error;
-
-      setOrders(data || []);
-    } catch (err) {
-      console.log("Fetch orders error:", err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const today = new Date().toISOString().split("T")[0];
+  const [selectedDate, setSelectedDate] = useState(today);
 
   useEffect(() => {
-    let channel;
+    fetch(`${API_URL}/orders`, { headers: { "Bypass-Tunnel-Reminder": "true" } })
+      .then((res) => res.json())
+      .then((data) => {
+        setOrders(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
-    const init = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      setUserId(user.id);
-      await fetchOrders(user.id);
-
-      // ✅ Realtime listener (only this user's orders)
-      channel = supabase
-        .channel("orders-realtime")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "orders",
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            fetchOrders(user.id);
-          }
-        )
-        .subscribe();
-    };
-
-    init();
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [fetchOrders]);
-
-  // ✅ Date filter
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      if (!order.order_time) return false;
-
-      const orderDate = new Date(order.order_time)
-        .toISOString()
-        .split("T")[0];
-
-      return orderDate === selectedDate;
-    });
-  }, [orders, selectedDate]);
+  const filteredOrders = useMemo(
+    () =>
+      orders.filter((order) => new Date(order.orderTime).toISOString().split("T")[0] === selectedDate),
+    [orders, selectedDate]
+  );
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
+  const itemWidth = responsive.isMobile ? responsive.innerWidth : responsive.cardWidth;
+
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: COLORS.background,
-        padding: SPACING.md,
-      }}
-    >
-      {/* HEADER */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          marginBottom: SPACING.md,
-        }}
-      >
-        <Pressable onPress={() => router.replace("/customer/home")}>
-          <Ionicons name="arrow-back" size={24} />
-        </Pressable>
-
-        <Text
-          style={{
-            fontSize: FONT.title,
-            fontWeight: "bold",
-            marginLeft: SPACING.sm,
-          }}
-        >
-          My Orders
-        </Text>
-      </View>
-
-      {/* DATE FILTER */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          borderWidth: 1,
-          borderColor: COLORS.border,
-          borderRadius: 8,
-          paddingHorizontal: SPACING.md,
-          marginBottom: SPACING.md,
-          backgroundColor: COLORS.surface,
-        }}
-      >
-        <TextInput
-          value={selectedDate}
-          onChangeText={setSelectedDate}
-          style={{ flex: 1, height: 44 }}
-          placeholder="YYYY-MM-DD"
-          {...(Platform.OS === "web" && { type: "date" })}
-        />
-        <Ionicons name="calendar-outline" size={20} />
-      </View>
-
-      {/* ORDERS LIST */}
-      {filteredOrders.length === 0 ? (
-        <Text style={{ textAlign: "center", marginTop: SPACING.lg }}>
-          No orders for this date 📭
-        </Text>
-      ) : (
-        <FlatList
-          data={filteredOrders}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View
-              style={{
-                backgroundColor: COLORS.surface,
-                padding: SPACING.md,
-                marginBottom: SPACING.md,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: COLORS.border,
-              }}
-            >
-              <Text style={{ fontWeight: "bold" }}>
-                Order #{item.order_no}
-              </Text>
-
-              <Text>{formatDateTime(item.order_time)}</Text>
-
-              <Text style={{ fontWeight: "bold" }}>
-                Status:{" "}
-                <Text
-                  style={{
-                    color: STATUS_COLORS[item.status] || "#000",
-                  }}
-                >
-                  {item.status}
-                </Text>
-              </Text>
-
-              {item.order_items?.map((oi) => (
-                <Text key={oi.id}>
-                  {oi.items?.name || "Item"} × {oi.quantity}
-                </Text>
-              ))}
-
-              <Text style={{ marginTop: 6, fontWeight: "bold" }}>
-                Total: ₹{Number(item.total || 0).toFixed(2)}
-              </Text>
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <FlatList
+        key={responsive.numColumns}
+        data={filteredOrders}
+        numColumns={responsive.numColumns}
+        columnWrapperStyle={responsive.numColumns > 1 ? { justifyContent: "space-between", gap: responsive.gap } : null}
+        keyExtractor={(item) => item.orderNo.toString()}
+        contentContainerStyle={{ padding: responsive.screenPadding }}
+        ListHeaderComponent={
+          <View style={{ width: responsive.contentWidth, marginBottom: responsive.gap }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: responsive.gap }}>
+              <Pressable onPress={() => router.replace("/customer/home")}>
+                <Ionicons name="arrow-back" size={responsive.iconSize} color={COLORS.primary} />
+              </Pressable>
+              <Text style={{ fontSize: responsive.titleSize, fontWeight: "bold", marginLeft: 12 }}>My Orders</Text>
             </View>
-          )}
-        />
-      )}
+
+            <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 16, marginBottom: responsive.gap, backgroundColor: COLORS.surface }}>
+              <TextInput
+                value={selectedDate}
+                onChangeText={setSelectedDate}
+                style={{ flex: 1, height: responsive.buttonHeight, fontSize: responsive.bodySize }}
+                placeholder="YYYY-MM-DD"
+                {...(Platform.OS === "web" && { type: "date" })}
+              />
+              <Ionicons name="calendar-outline" size={responsive.iconSize - 2} color={COLORS.primary} />
+            </View>
+          </View>
+        }
+        renderItem={({ item, index }) => {
+          const isLeftOverSingle = responsive.numColumns === 2 && filteredOrders.length % 2 === 1 && index === filteredOrders.length - 1;
+          const width = isLeftOverSingle ? responsive.contentWidth : itemWidth;
+
+          return (
+            <View style={{ width, marginBottom: responsive.gap }}>
+              <View style={{ backgroundColor: COLORS.surface, padding: responsive.gap, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border }}>
+                <Text style={{ fontWeight: "bold", fontSize: responsive.bodySize }}>Order #{item.orderNo}</Text>
+                <Text style={{ color: COLORS.mutedText, marginTop: 4, fontSize: responsive.smallSize }}>{new Date(item.orderTime).toLocaleString()}</Text>
+                <Text style={{ marginTop: 6, fontSize: responsive.bodySize }}>
+                  Status: <Text style={{ color: STATUS_COLORS[item.status], fontWeight: "700" }}>{item.status}</Text>
+                </Text>
+                <View style={{ marginTop: 8 }}>
+                  {item.items.map((i, idx) => (
+                    <Text key={idx} style={{ color: COLORS.text, fontSize: responsive.smallSize }}>
+                      {i.name} x {i.qty}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </View>
+          );
+        }}
+        ListEmptyComponent={<Text style={{ textAlign: "center", color: COLORS.mutedText }}>No orders for this date.</Text>}
+      />
     </View>
   );
 }

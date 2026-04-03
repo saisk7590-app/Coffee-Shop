@@ -1,8 +1,10 @@
 import { View, Text, Pressable, Image } from "react-native";
 import { useRouter } from "expo-router";
-import { COLORS, SPACING, FONT } from "../../constants";
+import { COLORS } from "../../constants";
+import { useResponsive } from "../../lib/responsive";
 
 export default function Index() {
+  const responsive = useResponsive();
   const router = useRouter();
 
   return (
@@ -12,38 +14,40 @@ export default function Index() {
         justifyContent: "center",
         alignItems: "center",
         backgroundColor: COLORS.background,
-        padding: SPACING.md,
+        padding: responsive.screenPadding,
       }}
     >
-      {/* LOGO */}
       <Image
         source={require("../../assets/logo.png")}
-        style={{ width: 140, height: 140, marginBottom: SPACING.lg }}
+        style={{
+          width: responsive.isLarge ? 160 : responsive.isTablet ? 140 : 120,
+          height: responsive.isLarge ? 160 : responsive.isTablet ? 140 : 120,
+          marginBottom: responsive.gap + 8,
+        }}
         resizeMode="contain"
       />
 
-      {/* APP NAME */}
-      <Text style={{ fontSize: FONT.title, fontWeight: "bold", color: COLORS.text }}>
+      <Text style={{ fontSize: responsive.titleSize, fontWeight: "bold", color: COLORS.text }}>
         Cafe App
       </Text>
 
-      {/* START BUTTON */}
       <Pressable
         onPress={() => router.push("/auth/register")}
         style={{
-          marginTop: SPACING.lg, // safe spacing, no undefined value
+          marginTop: responsive.gap + 8,
           backgroundColor: COLORS.primary,
-          paddingHorizontal: SPACING.lg,
-          paddingVertical: SPACING.md,
-          borderRadius: 8,
+          paddingHorizontal: 32,
+          paddingVertical: 14,
+          borderRadius: 10,
+          minWidth: 160,
+          alignItems: "center",
         }}
       >
         <Text
           style={{
             color: COLORS.buttonText,
-            fontSize: FONT.normal,
+            fontSize: responsive.bodySize,
             fontWeight: "bold",
-            textAlign: "center",
           }}
         >
           START

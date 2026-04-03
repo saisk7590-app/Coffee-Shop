@@ -1,289 +1,158 @@
-import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  TextInput,
-  Platform,
-  ActivityIndicator,
-} from "react-native";
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { supabase } from "../../lib/supabase";
-import { COLORS, SPACING, FONT, STATUS_COLORS } from "../../constants";
+import { View, Text, FlatList, Pressable, TextInput, Platform } from "react-native";
+import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS, STATUS_COLORS, API_URL } from "../../constants";
+import { useResponsive } from "../../lib/responsive";
 
 export default function Chef() {
+  const responsive = useResponsive();
+  const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState("recent");
-  const [loading, setLoading] = useState(true);
-
-  // ✅ Safe date format (local time automatically)
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "";
-
-    const date = new Date(dateString);
-
-    return date.toLocaleString("en-IN", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
-  // ✅ Get YYYY-MM-DD safely
-  const formatDateOnly = (dateString) => {
-    if (!dateString) return "";
-    return new Date(dateString).toISOString().split("T")[0];
-  };
-
   const today = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
 
-  // ✅ Fetch orders
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = async () => {
     try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          order_items (
-            id,
-            quantity,
-            price,
-            items (
-              name
-            )
-          )
-        `)
-        .order("order_time", { ascending: false });
-
-      if (error) throw error;
-
-      setOrders(data || []);
+      const res = await fetch(`${API_URL}/orders`, { headers: { "Bypass-Tunnel-Reminder": "true" } });
+      setOrders(await res.json());
     } catch (err) {
-      console.log("Fetch error:", err.message);
-    } finally {
-      setLoading(false);
+      console.log("Fetch orders error:", err);
     }
-  }, []);
-
-  useEffect(() => {
-    let channel;
-
-    const init = async () => {
-      await fetchOrders();
-
-      // ✅ Realtime subscription
-      channel = supabase
-        .channel("chef-orders")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "orders",
-          },
-          () => {
-            fetchOrders();
-          }
-        )
-        .subscribe();
-    };
-
-    init();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [fetchOrders]);
-
-  // ✅ Filter orders
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      if (!order.order_time) return false;
-
-      const orderDate = formatDateOnly(order.order_time);
-
-      if (activeTab === "recent") {
-        return orderDate === today;
-      }
-
-      return orderDate === selectedDate;
-    });
-  }, [orders, activeTab, selectedDate]);
-
-  const updateStatus = async (orderId, newStatus) => {
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: newStatus })
-      .eq("id", orderId);
-
-    if (error) console.log(error.message);
   };
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const updateStatus = async (orderNo, newStatus) => {
+    try {
+      await fetch(`${API_URL}/orders/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Bypass-Tunnel-Reminder": "true",
+        },
+        body: JSON.stringify({ orderNo, status: newStatus }),
+      });
+      fetchOrders();
+    } catch (err) {
+      console.log("Update status error:", err);
+    }
+  };
+
+  const filteredOrders = useMemo(
+    () =>
+      orders.filter((order) => {
+        const orderDate = new Date(order.orderTime).toISOString().split("T")[0];
+        return activeTab === "recent" ? orderDate === today : orderDate === selectedDate;
+      }),
+    [orders, activeTab, selectedDate, today]
+  );
+
+  const itemWidth = responsive.isMobile ? responsive.innerWidth : responsive.cardWidth;
 
   return (
-    <View
-      style={{
-        flex: 1,
-        padding: SPACING.md,
-        backgroundColor: COLORS.background,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: FONT.title,
-          fontWeight: "bold",
-          marginBottom: SPACING.md,
-        }}
-      >
-        Chef Orders
-      </Text>
-
-      {/* TABS */}
-      <View style={{ flexDirection: "row", marginBottom: SPACING.md }}>
-        {["recent", "previous"].map((tab) => (
-          <Pressable
-            key={tab}
-            onPress={() => setActiveTab(tab)}
-            style={{
-              flex: 1,
-              padding: SPACING.sm,
-              backgroundColor:
-                activeTab === tab ? COLORS.primary : COLORS.surface,
-              borderRadius: 6,
-              marginRight: tab === "recent" ? SPACING.sm : 0,
-            }}
-          >
-            <Text
-              style={{
-                textAlign: "center",
-                color: activeTab === tab ? "#fff" : COLORS.text,
-                fontWeight: "bold",
-              }}
-            >
-              {tab === "recent" ? "Recent Orders" : "Previous Orders"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* DATE PICKER */}
-      {activeTab === "previous" && (
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            borderRadius: 8,
-            paddingHorizontal: SPACING.md,
-            marginBottom: SPACING.md,
-            backgroundColor: COLORS.surface,
-          }}
-        >
-          <TextInput
-            value={selectedDate}
-            onChangeText={setSelectedDate}
-            style={{ height: 44 }}
-            placeholder="YYYY-MM-DD"
-            {...(Platform.OS === "web" && { type: "date" })}
-          />
-        </View>
-      )}
-
-      {/* ORDERS */}
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
       <FlatList
+        key={`${activeTab}-${responsive.numColumns}`}
         data={filteredOrders}
-        keyExtractor={(item) => item.id.toString()}
-        ListEmptyComponent={
-          <Text style={{ textAlign: "center", marginTop: SPACING.lg }}>
-            No orders found 📭
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <View
-            style={{
-              marginBottom: SPACING.md,
-              padding: SPACING.md,
-              borderWidth: 1,
-              borderColor: COLORS.border,
-              borderRadius: 8,
-              backgroundColor: "#fff",
-            }}
-          >
-            <Text style={{ fontWeight: "bold" }}>
-              Order #{item.order_no}
-            </Text>
-
-            <Text>{formatDateTime(item.order_time)}</Text>
-
-            <Text style={{ fontWeight: "bold", marginTop: 4 }}>
-              Status:{" "}
-              <Text style={{ color: STATUS_COLORS[item.status] || "#000" }}>
-                {item.status}
-              </Text>
-            </Text>
-
-            {item.order_items?.map((oi) => (
-              <Text key={oi.id}>
-                {oi.items?.name || "Item"} × {oi.quantity}
-              </Text>
-            ))}
-
-            {activeTab === "recent" && item.status !== "Served" && (
-              <View style={{ flexDirection: "row", marginTop: SPACING.sm }}>
-                {item.status === "Pending" && (
-                  <Pressable
-                    onPress={() => updateStatus(item.id, "In Progress")}
-                    style={{
-                      backgroundColor: STATUS_COLORS["In Progress"],
-                      padding: SPACING.sm,
-                      borderRadius: 6,
-                      marginRight: SPACING.sm,
-                    }}
-                  >
-                    <Text style={{ color: "#fff" }}>Start</Text>
-                  </Pressable>
-                )}
-
-                {item.status === "In Progress" && (
-                  <Pressable
-                    onPress={() => updateStatus(item.id, "Ready")}
-                    style={{
-                      backgroundColor: STATUS_COLORS["Ready"],
-                      padding: SPACING.sm,
-                      borderRadius: 6,
-                      marginRight: SPACING.sm,
-                    }}
-                  >
-                    <Text style={{ color: "#fff" }}>Ready</Text>
-                  </Pressable>
-                )}
-
-                {item.status === "Ready" && (
-                  <Pressable
-                    onPress={() => updateStatus(item.id, "Served")}
-                    style={{
-                      backgroundColor: STATUS_COLORS["Served"],
-                      padding: SPACING.sm,
-                      borderRadius: 6,
-                    }}
-                  >
-                    <Text style={{ color: "#fff" }}>Serve</Text>
-                  </Pressable>
-                )}
+        numColumns={responsive.numColumns}
+        columnWrapperStyle={responsive.numColumns > 1 ? { justifyContent: "space-between", gap: responsive.gap } : null}
+        keyExtractor={(item) => item.orderNo.toString()}
+        contentContainerStyle={{ padding: responsive.screenPadding }}
+        ListHeaderComponent={
+          <View style={{ width: responsive.contentWidth, marginBottom: responsive.gap }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: responsive.gap }}>
+              <Text style={{ fontSize: responsive.titleSize, fontWeight: "bold" }}>Chef Orders</Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Pressable onPress={() => router.push("/customer/profile")} style={{ marginRight: 16 }}>
+                  <Ionicons name="person-circle-outline" size={responsive.iconSize + 2} color={COLORS.primary} />
+                </Pressable>
+                <Pressable onPress={() => router.replace("/auth/login")}>
+                  <Ionicons name="log-out-outline" size={responsive.iconSize} color={COLORS.primary} />
+                </Pressable>
               </View>
-            )}
+            </View>
+
+            <View style={{ flexDirection: "row", gap: responsive.gap / 2, marginBottom: responsive.gap }}>
+              {["recent", "previous"].map((tab) => (
+                <Pressable
+                  key={tab}
+                  onPress={() => setActiveTab(tab)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: responsive.buttonHeight / 4,
+                    backgroundColor: activeTab === tab ? COLORS.primary : COLORS.surface,
+                    borderRadius: 10,
+                    borderWidth: activeTab === tab ? 0 : 1,
+                    borderColor: COLORS.border,
+                  }}
+                >
+                  <Text style={{ textAlign: "center", color: activeTab === tab ? "#fff" : COLORS.text, fontWeight: "bold", fontSize: responsive.bodySize }}>
+                    {tab === "recent" ? "Recent Orders" : "Previous Orders"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {activeTab === "previous" ? (
+              <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 16, marginBottom: responsive.gap, backgroundColor: COLORS.surface }}>
+                <TextInput
+                  value={selectedDate}
+                  onChangeText={setSelectedDate}
+                  style={{ flex: 1, height: responsive.buttonHeight, fontSize: responsive.bodySize }}
+                  {...(Platform.OS === "web" && { type: "date" })}
+                />
+              </View>
+            ) : null}
           </View>
-        )}
+        }
+        renderItem={({ item, index }) => {
+          const isLeftOverSingle = responsive.numColumns === 2 && filteredOrders.length % 2 === 1 && index === filteredOrders.length - 1;
+          const width = isLeftOverSingle ? responsive.contentWidth : itemWidth;
+
+          return (
+            <View style={{ width, marginBottom: responsive.gap }}>
+              <View style={{ padding: responsive.isAndroidPhone ? 10 : responsive.gap, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, backgroundColor: "#fff" }}>
+                <Text style={{ fontWeight: "bold", fontSize: responsive.bodySize }}>Order #{item.orderNo}</Text>
+                <Text style={{ color: COLORS.mutedText, marginTop: 4, fontSize: responsive.smallSize }}>{new Date(item.orderTime).toLocaleString()}</Text>
+                <Text style={{ fontWeight: "bold", fontSize: responsive.bodySize, marginTop: 6 }}>
+                  Status: <Text style={{ color: STATUS_COLORS[item.status] }}>{item.status}</Text>
+                </Text>
+                <View style={{ marginTop: 8 }}>
+                  {item.items.map((i, idx) => (
+                    <Text key={idx} style={{ fontSize: responsive.smallSize }}>{i.name} x {i.qty}</Text>
+                  ))}
+                </View>
+
+                {activeTab === "recent" && item.status !== "Served" ? (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: responsive.gap / 1.5 }}>
+                    {item.status === "Pending" ? (
+                      <Pressable onPress={() => updateStatus(item.orderNo, "In Progress")} style={{ backgroundColor: STATUS_COLORS["In Progress"], paddingVertical: responsive.buttonHeight / 4, paddingHorizontal: 18, borderRadius: 10 }}>
+                        <Text style={{ color: "#fff", fontSize: responsive.bodySize, fontWeight: "700" }}>Start</Text>
+                      </Pressable>
+                    ) : null}
+                    {item.status === "In Progress" ? (
+                      <Pressable onPress={() => updateStatus(item.orderNo, "Ready")} style={{ backgroundColor: STATUS_COLORS.Ready, paddingVertical: responsive.buttonHeight / 4, paddingHorizontal: 18, borderRadius: 10 }}>
+                        <Text style={{ color: "#fff", fontSize: responsive.bodySize, fontWeight: "700" }}>Ready</Text>
+                      </Pressable>
+                    ) : null}
+                    {item.status === "Ready" ? (
+                      <Pressable onPress={() => updateStatus(item.orderNo, "Served")} style={{ backgroundColor: STATUS_COLORS.Served, paddingVertical: responsive.buttonHeight / 4, paddingHorizontal: 18, borderRadius: 10 }}>
+                        <Text style={{ color: "#fff", fontSize: responsive.bodySize, fontWeight: "700" }}>Serve</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          );
+        }}
+        ListEmptyComponent={<Text style={{ textAlign: "center", color: COLORS.mutedText }}>No orders found</Text>}
       />
     </View>
   );

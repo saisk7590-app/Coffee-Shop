@@ -1,145 +1,115 @@
-import { View, Text, Pressable, Animated } from "react-native";
+import { View, Text, Pressable, Animated, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { COLORS, SPACING, FONT } from "../../constants";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../../constants";
+import { useResponsive } from "../../lib/responsive";
+
+const actions = [
+  { label: "Menu", route: "/customer/menu", color: COLORS.primary, icon: "restaurant-outline" },
+  { label: "My Orders", route: "/customer/my-orders", color: COLORS.accent, icon: "receipt-outline" },
+  { label: "Products", route: "/customer/products", color: "#2E211B", icon: "basket-outline" },
+];
 
 export default function Home() {
+  const responsive = useResponsive();
   const router = useRouter();
   const { successMessage } = useLocalSearchParams();
-
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-10)).current;
-
   const [showMessage, setShowMessage] = useState(!!successMessage);
 
   useEffect(() => {
     if (successMessage) {
-      // Fade + slide in
+      setShowMessage(true);
       Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: true,
-        }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
       ]).start();
 
-      // Auto hide after 3 seconds
       const timer = setTimeout(() => {
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        }).start(() => setShowMessage(false));
+        Animated.timing(fadeAnim, { toValue: 0, duration: 600, useNativeDriver: true }).start(() => {
+          setShowMessage(false);
+          router.replace("/customer/home");
+        });
       }, 3000);
 
       return () => clearTimeout(timer);
     }
-  }, [successMessage]);
+  }, [successMessage, fadeAnim, slideAnim, router]);
 
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: COLORS.background,
-        padding: SPACING.lg,
-      }}
-    >
-      {/* TITLE */}
-      <Text
-        style={{
-          fontSize: FONT.title,
-          fontWeight: "bold",
-          marginBottom: SPACING.md,
-          textAlign: "center",
-        }}
-      >
-        Welcome to Café ☕
-      </Text>
+    <ScrollView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <View style={{ padding: responsive.screenPadding }}>
+        <View style={{ width: responsive.contentWidth }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: responsive.gap }}>
+            <View style={{ flex: 1, paddingRight: 16 }}>
+              <Text style={{ fontSize: responsive.titleSize, fontWeight: "bold", color: COLORS.text }}>
+                Welcome to Cafe
+              </Text>
+              <Text style={{ color: COLORS.mutedText, marginTop: 4, fontSize: responsive.bodySize }}>
+                Browse menu items, products, and orders on any screen size.
+              </Text>
+            </View>
 
-      {/* ✅ SUCCESS MESSAGE */}
-      {showMessage && (
-        <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-            backgroundColor: "#E6F4EA",
-            borderColor: "#2E7D32",
-            borderWidth: 1,
-            padding: SPACING.sm,
-            borderRadius: 8,
-            marginBottom: SPACING.lg,
-            width: "90%",
-          }}
-        >
-          <Text
-            style={{
-              color: "#2E7D32",
-              textAlign: "center",
-              fontWeight: "600",
-            }}
-          >
-            {successMessage}
-          </Text>
-        </Animated.View>
-      )}
+            <Pressable
+              onPress={() => router.push("/customer/profile")}
+              style={{
+                width: responsive.isLarge ? 56 : 48,
+                height: responsive.isLarge ? 56 : 48,
+                borderRadius: 999,
+                backgroundColor: "#fff",
+                justifyContent: "center",
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: COLORS.border,
+              }}
+            >
+              <Ionicons name="person-outline" size={responsive.iconSize} color={COLORS.primary} />
+            </Pressable>
+          </View>
 
-      {/* MENU BUTTON */}
-      <Pressable
-        onPress={() => router.push("/customer/menu")}
-        style={{
-          backgroundColor: COLORS.primary,
-          width: "80%",
-          padding: SPACING.md,
-          borderRadius: 12,
-          marginBottom: SPACING.md,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "#fff", fontSize: FONT.normal, fontWeight: "bold" }}>
-          Menu
-        </Text>
-      </Pressable>
+          {showMessage ? (
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+                backgroundColor: "#E6F4EA",
+                borderColor: "#2E7D32",
+                borderWidth: 1,
+                padding: responsive.gap / 1.5,
+                borderRadius: 10,
+                marginBottom: responsive.gap,
+              }}
+            >
+              <Text style={{ color: "#2E7D32", textAlign: "center", fontWeight: "600", fontSize: responsive.bodySize }}>
+                {successMessage}
+              </Text>
+            </Animated.View>
+          ) : null}
 
-      {/* PROFILE BUTTON */}
-      <Pressable
-        onPress={() => router.push("/customer/profile")}
-        style={{
-          backgroundColor: COLORS.secondary,
-          width: "80%",
-          padding: SPACING.md,
-          borderRadius: 12,
-          marginBottom: SPACING.md,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "#fff", fontSize: FONT.normal, fontWeight: "bold" }}>
-          Profile
-        </Text>
-      </Pressable>
-
-      {/* MY ORDERS BUTTON */}
-      <Pressable
-        onPress={() => router.push("/customer/my-orders")}
-        style={{
-          backgroundColor: COLORS.accent,
-          width: "80%",
-          padding: SPACING.md,
-          borderRadius: 12,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "#fff", fontSize: FONT.normal, fontWeight: "bold" }}>
-          My Orders
-        </Text>
-      </Pressable>
-    </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+            {actions.map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={() => router.push(item.route)}
+                style={{
+                  width: responsive.isMobile ? responsive.innerWidth : responsive.cardWidth,
+                  backgroundColor: item.color,
+                  padding: responsive.isLarge ? 24 : responsive.isCompactPhone ? 14 : 18,
+                  borderRadius: 14,
+                  marginBottom: responsive.gap,
+                }}
+              >
+                <Ionicons name={item.icon} size={responsive.iconSize + (responsive.isAndroidPhone ? 2 : 4)} color="#fff" />
+                <Text style={{ color: "#fff", fontSize: responsive.subtitleSize, fontWeight: "bold", marginTop: responsive.isAndroidPhone ? 8 : responsive.isCompactPhone ? 10 : 14 }}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+    </ScrollView>
   );
 }

@@ -2,9 +2,9 @@
   "expo": {
     "name": "Coffee Shop App",
     "slug": "coffee-shop-app",
+    "scheme": "coffeeshopapp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "upbeatcoffee",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
@@ -14,9 +14,10 @@
     },
     "android": {
       "package": "com.owner.coffeeshop",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F6F0E8"
       }
     },
     "web": {
@@ -29,7 +30,3 @@
     }
   }
 }
-
-    
-  
-

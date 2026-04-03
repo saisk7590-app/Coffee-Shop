@@ -1,50 +1,42 @@
-/* ================= COLORS ================= */
 export const COLORS = {
-    // Brand
-    primary: "#6f4e37",      // coffee brown
-    secondary: "#8d6e63",    // light coffee (cards, profile)
-    accent: "#c49a6c",       // highlight / CTA
-
-    // Base
-    background: "#ffffff",
-    surface: "#f7f7f7",      // card background
-    text: "#222222",
-    mutedText: "#666666",
-
-    // UI
-    buttonText: "#ffffff",
-    border: "#dddddd",
-    divider: "#eeeeee",
-
-    // Alerts
-    success: "#32CD32",
-    warning: "#FFA500",
-    error: "#FF4D4D",
+  primary: "#5C3B2E",
+  secondary: "#9C6B4F",
+  accent: "#D68C45",
+  background: "#F6F0E8",
+  surface: "#FFFDF9",
+  text: "#2E211B",
+  mutedText: "#75645B",
+  buttonText: "#FFFDF9",
+  border: "#E7D9CA",
+  divider: "#EFE4D8",
+  success: "#2E8B57",
+  warning: "#E8A317",
+  error: "#C44536",
+  shadow: "rgba(61, 40, 28, 0.12)",
 };
 
-/* ================= SPACING ================= */
 export const SPACING = {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
 };
 
-/* ================= FONTS ================= */
 export const FONT = {
-    title: 26,
-    subtitle: 20,
-    normal: 16,
-    small: 14,
+  title: 28,
+  subtitle: 20,
+  normal: 16,
+  small: 14,
+  tiny: 12,
 };
 
-/* ================= ORDER STATUS COLORS ================= */
 export const STATUS_COLORS = {
-    Pending: "#FFA500",        // orange
-    "In Progress": "#00BFFF",  // blue
-    Ready: "#32CD32",          // green
-    Served: "#A9A9A9",         // gray
-    Cancelled: "#FF4D4D",      // red (future-safe)
+  Pending: "#FFA500",
+  "In Progress": "#00BFFF",
+  Ready: "#32CD32",
+  Served: "#A9A9A9",
+  Cancelled: "#FF4D4D",
 };
 
+export { API_BASE_URL, API_URL } from "./config";
